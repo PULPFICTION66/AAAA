@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PTT Web</title>
+<style>
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:#0e0f11;color:#e6e6e6;font:14px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+a{color:#8fd3ff;text-decoration:none}
+a:hover{text-decoration:underline}
+.topbar{display:flex;align-items:center;gap:12px;padding:10px 14px;background:#15161a;border-bottom:1px solid #24262b;position:sticky;top:0;z-index:10}
+.title{font-weight:700;color:#9ae6b4}
+.search{flex:1;display:flex;gap:8px}
+.search input{flex:1;padding:8px 10px;border:1px solid #30343b;border-radius:6px;background:#131417;color:#e6e6e6}
+.btn{padding:8px 12px;border:1px solid #30343b;background:#1a1c21;color:#e6e6e6;border-radius:6px;cursor:pointer}
+.btn:hover{background:#21242a}
+.layout{display:grid;grid-template-columns:260px 1fr;height:calc(100% - 50px)}
+.sidebar{border-right:1px solid #24262b;background:#121317;overflow:auto}
+.board-item{padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1f2025;cursor:pointer}
+.board-item:hover{background:#181a1f}
+.content{overflow:auto}
+.section{padding:16px 18px}
+.list{display:flex;flex-direction:column;gap:8px}
+.card{padding:12px 14px;border:1px solid #30343b;background:#121317;border-radius:8px}
+.meta{color:#9aa0a6}
+.grid{display:grid;grid-template-columns:1fr 120px 120px;gap:10px}
+.article-title{font-weight:700;color:#c4f1f9}
+.push{display:flex;gap:8px;align-items:flex-start;margin:4px 0}
+.push-tag{min-width:24px;font-weight:700}
+.push-input{display:flex;gap:8px;margin-top:12px}
+.select{padding:8px;border:1px solid #30343b;background:#1a1c21;color:#e6e6e6;border-radius:6px}
+.modal-mask{position:fixed;inset:0;background:#0009;display:none;align-items:center;justify-content:center;z-index:100}
+.modal{width:600px;max-width:95vw;background:#121317;border:1px solid #30343b;border-radius:10px;padding:16px}
+.modal h3{margin:0 0 12px 0;color:#9ae6b4}
+.modal .row{display:flex;gap:10px;margin-bottom:10px}
+.modal input,.modal textarea,.modal select{flex:1;padding:8px 10px;border:1px solid #30343b;border-radius:6px;background:#131417;color:#e6e6e6}
+.modal textarea{min-height:160px;resize:vertical}
+.flex{display:flex;gap:8px}
+.pill{padding:2px 8px;border:1px solid #30343b;border-radius:999px}
+.count-up{color:#9ae6b4}
+.count-down{color:#fc8181}
+.footer{padding:16px;text-align:center;color:#9aa0a6}
+.container{width:min(1100px,100%);margin:0 auto}
+.topbar .container{display:flex;align-items:center;gap:12px}
+.brand{display:flex;align-items:center;gap:8px}
+.brand .logo{width:20px;height:20px;border-radius:4px;background:#9ae6b4}
+.btn.secondary{background:#121317}
+.btn.primary{background:#1e3a2f;border-color:#2f5f4a}
+.btn.primary:hover{background:#224738}
+@media (max-width: 768px){
+  .layout{grid-template-columns:1fr}
+  .sidebar{display:none}
+  body.show-sidebar .sidebar{display:block}
+  .topbar{position:sticky;top:0}
+  #toggle-sidebar-btn{display:inline-block}
+}
+@media (min-width: 769px){
+  #toggle-sidebar-btn{display:none}
+}
+.chat-wrap{padding:16px 18px}
+.chat-list{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+.chat-item{display:flex;gap:8px}
+.chat-me{justify-content:flex-end}
+.chat-bubble{max-width:70%;padding:10px 12px;border-radius:10px}
+.chat-me .chat-bubble{background:#1e3a2f;color:#e6e6e6}
+.chat-other .chat-bubble{background:#121317;border:1px solid #30343b}
+.chat-input{display:flex;gap:8px}
+.chat-input input{flex:1;padding:8px 10px;border:1px solid #30343b;border-radius:6px;background:#131417;color:#e6e6e6}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="container">
+    <div class="brand">
+      <div class="logo"></div>
+      <div class="title">PTT</div>
+    </div>
+    <div id="router-path" class="pill"></div>
+    <button class="btn" id="toggle-sidebar-btn">看板</button>
+    <div class="search">
+      <input id="search-input" placeholder="搜尋標題或作者">
+      <button class="btn primary" id="search-btn">搜尋</button>
+    </div>
+    <button class="btn primary" id="compose-btn">發文</button>
+    <button class="btn secondary" id="open-chat-btn">聊天室</button>
+    <button class="btn secondary" id="open-cloud-btn">雲聊天設定</button>
+    <div id="conn-pill" class="pill"></div>
+    <div id="user-pill" class="pill"></div>
+    <button class="btn secondary" id="login-open-btn">登入</button>
+    <button class="btn secondary" id="logout-btn" style="display:none">登出</button>
+  </div>
+  </div>
+<div class="container">
+  <div class="layout">
+    <div class="sidebar" id="sidebar"></div>
+    <div class="content" id="content"></div>
+  </div>
+  </div>
+<div class="footer">PTT Web MVP</div>
+
+<div class="modal-mask" id="compose-mask">
+  <div class="modal">
+    <h3>發表文章</h3>
+    <div class="row">
+      <select id="compose-board" class="select"></select>
+      <input id="compose-author" placeholder="作者">
+    </div>
+    <div class="row">
+      <input id="compose-title" placeholder="標題">
+    </div>
+    <div class="row">
+      <textarea id="compose-content" placeholder="內文"></textarea>
+    </div>
+    <div class="flex">
+      <button class="btn" id="compose-cancel">取消</button>
+      <button class="btn" id="compose-submit">送出</button>
+    </div>
+  </div>
+  </div>
+
+<div class="modal-mask" id="auth-mask">
+  <div class="modal">
+    <h3>帳戶</h3>
+    <div class="row">
+      <select id="auth-mode" class="select">
+        <option value="login">登入</option>
+        <option value="signup">註冊</option>
+      </select>
+    </div>
+    <div class="row">
+      <input id="auth-username" placeholder="使用者名稱">
+      <input id="auth-password" type="password" placeholder="密碼">
+    </div>
+    <div class="row" id="signup-extra" style="display:none">
+      <input id="auth-nickname" placeholder="暱稱（註冊時可填）">
+    </div>
+    <div class="flex">
+      <button class="btn" id="auth-cancel">取消</button>
+      <button class="btn" id="auth-submit">送出</button>
+    </div>
+  </div>
+  </div>
+
+<div class="modal-mask" id="cloud-mask">
+  <div class="modal">
+    <h3>雲聊天設定</h3>
+    <div class="row">
+      <input id="cfg-apiKey" placeholder="apiKey">
+      <input id="cfg-authDomain" placeholder="authDomain">
+    </div>
+    <div class="row">
+      <input id="cfg-projectId" placeholder="projectId">
+      <input id="cfg-appId" placeholder="appId">
+    </div>
+    <div class="row">
+      <input id="cfg-storageBucket" placeholder="storageBucket">
+      <input id="cfg-messagingSenderId" placeholder="messagingSenderId">
+    </div>
+    <div class="flex">
+      <button class="btn" id="cloud-cancel">取消</button>
+      <button class="btn" id="cloud-submit">啟用</button>
+    </div>
+  </div>
+  </div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script>
+const store = {
+  get(k, d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
+  set(k, v){localStorage.setItem(k, JSON.stringify(v))}
+}
+const seedBoards = [
+  {id:'Gossiping', name:'八卦'},
+  {id:'C_Chat', name:'西洽'},
+  {id:'NBA', name:'NBA'},
+  {id:'Stock', name:'股票'},
+  {id:'Beauty', name:'表特'}
+]
+const now = ()=>new Date().toISOString().slice(0,16).replace('T',' ')
+const initialPosts = [
+  {id:'p1', boardId:'Gossiping', title:'今天新聞怎麼看', author:'amy', time:now(), up:12, down:3, content:'分享一下看法'},
+  {id:'p2', boardId:'C_Chat', title:'推番推薦', author:'kai', time:now(), up:20, down:1, content:'本季必看'},
+  {id:'p3', boardId:'NBA', title:'湖人戰況', author:'jo', time:now(), up:18, down:5, content:'分析數據'},
+  {id:'p4', boardId:'Stock', title:'台股盤後', author:'eva', time:now(), up:9, down:2, content:'明日策略'},
+  {id:'p5', boardId:'Beauty', title:'美照分享', author:'yuki', time:now(), up:30, down:0, content:'拍攝心得'}
+]
+const initialPushes = {
+  p1:[{user:'bob', tag:'推', text:'同意', time:now()},{user:'leo', tag:'→', text:'補充來源', time:now()}],
+  p2:[{user:'me', tag:'推', text:'好看', time:now()}],
+  p3:[{user:'sam', tag:'噓', text:'數據不準', time:now()}],
+  p4:[],
+  p5:[{user:'mia', tag:'推', text:'漂亮', time:now()}]
+}
+const db = {
+  boards: store.get('ptt_boards', seedBoards),
+  posts: store.get('ptt_posts', initialPosts),
+  pushes: store.get('ptt_pushes', initialPushes),
+  users: store.get('ptt_users', {})
+}
+function save(){store.set('ptt_boards', db.boards);store.set('ptt_posts', db.posts);store.set('ptt_pushes', db.pushes);store.set('ptt_users', db.users)}
+window.FB_CONFIG = window.FB_CONFIG || {}
+const savedCfg = store.get('ptt_fb_config', {})
+let fbConfig = Object.keys(savedCfg).length ? savedCfg : window.FB_CONFIG
+let fbEnabled = !!fbConfig.apiKey
+let auth = null
+let firestore = null
+function initFirebase(cfg){
+  try{
+    firebase.initializeApp(cfg)
+    auth = firebase.auth()
+    firestore = firebase.firestore()
+    fbEnabled = true
+    if(auth){auth.onAuthStateChanged(()=>updateAuthUI())}
+  }catch(e){}
+}
+if(fbEnabled){initFirebase(fbConfig)}
+let chatUnsub = null
+let ws = null
+let wsEnabled = false
+let wsMsgs = []
+let wsPosts = []
+let wsHostParam = null
+try{wsHostParam = new URLSearchParams(location.search).get('ws')}catch(e){}
+let postsUnsub = null
+function updateConnUI(){
+  const el = document.getElementById('conn-pill')
+  if(!el) return
+  if(wsEnabled){el.textContent='WS 已連線'}
+  else if(fbEnabled && firestore){el.textContent='雲即時'}
+  else {el.textContent='單機'}
+}
+function fmtTime(x){
+  try{if(x && x.toDate)return x.toDate().toISOString().slice(0,16).replace('T',' ')}catch(e){}
+  return x||now()
+}
+function subscribePosts(){
+  if(!(fbEnabled&&firestore))return
+  if(postsUnsub)postsUnsub()
+  postsUnsub = firestore.collection('ptt_posts').orderBy('time','desc').onSnapshot(snap=>{
+    db.posts = snap.docs.map(d=>{
+      const x=d.data()
+      return {id:d.id,boardId:x.boardId,title:x.title,author:x.author,time:fmtTime(x.time),up:x.up||0,down:x.down||0,content:x.content||''}
+    })
+    renderSidebar()
+    const h=location.hash||'#/boards'
+    if(h.startsWith('#/board/')){renderBoard(h.split('/')[2])}
+    else if(h.startsWith('#/search')){search()}
+    else if(h.startsWith('#/article/')){}
+    else{renderBoards()}
+  })
+}
+function connectWS(){
+  try{
+    const proto = (location.protocol==='https:'?'wss':'ws')
+    let url = ''
+    if(wsHostParam){
+      if(/^wss?:\/\//.test(wsHostParam)){url = wsHostParam}
+      else if(wsHostParam.includes(':')){url = `${proto}://${wsHostParam}/`}
+      else{url = `${proto}://${wsHostParam}:8765/`}
+    }else{
+      const host = location.hostname || 'localhost'
+      url = `${proto}://${host}:8765/`
+    }
+    ws = new WebSocket(url)
+    ws.onopen = ()=>{wsEnabled = true; updateConnUI(); if(location.hash.startsWith('#/chat')) renderChat()}
+    ws.onmessage = (ev)=>{
+      try{
+        const d = JSON.parse(ev.data)
+        if(d.type==='init'){wsMsgs = d.messages||[]; wsPosts = d.posts||[]}
+        else if(d.type==='chat' && d.message){wsMsgs.push(d.message)}
+        else if(d.type==='post' && d.post){
+          const exists = wsPosts.some(p=>p.id===d.post.id)
+          if(!exists) wsPosts.push(d.post)
+          const h=location.hash||'#/boards'
+          if(h.startsWith('#/board/')){renderBoard(h.split('/')[2])}
+          else if(h.startsWith('#/search')){search()}
+          else{renderBoards()}
+        }
+        if(location.hash.startsWith('#/chat')) renderChat()
+      }catch(e){}
+    }
+    ws.onerror = ()=>{wsEnabled=false; updateConnUI()}
+    ws.onclose = ()=>{wsEnabled = false; updateConnUI(); setTimeout(connectWS,3000)}
+  }catch(e){}
+}
+function getPosts(){
+  if(wsEnabled && !fbEnabled) return wsPosts
+  return db.posts
+}
+function currentUser(){
+  if(fbEnabled && auth && auth.currentUser){
+    const u = auth.currentUser
+    return {id: u.uid, name: u.displayName || u.email}
+  }
+  const uid = store.get('ptt_session', null)
+  if(uid && db.users[uid]) return {id: uid, name: db.users[uid].name}
+  return null
+}
+async function sha256(s){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('')
+}
+function updateAuthUI(){
+  const u = currentUser()
+  const pill = document.getElementById('user-pill')
+  const loginBtn = document.getElementById('login-open-btn')
+  const logoutBtn = document.getElementById('logout-btn')
+  if(u){
+    pill.textContent = `已登入：${u.name}`
+    loginBtn.style.display = 'none'
+    logoutBtn.style.display = ''
+  }else{
+    pill.textContent = '未登入'
+    loginBtn.style.display = ''
+    logoutBtn.style.display = 'none'
+  }
+}
+function openAuth(){
+  document.getElementById('auth-username').value = ''
+  document.getElementById('auth-password').value = ''
+  document.getElementById('auth-nickname').value = ''
+  document.getElementById('auth-mode').value = fbEnabled ? 'login' : 'login'
+  document.getElementById('signup-extra').style.display = 'none'
+  document.getElementById('auth-mask').style.display = 'flex'
+}
+function closeAuth(){document.getElementById('auth-mask').style.display='none'}
+async function submitAuth(){
+  const mode = document.getElementById('auth-mode').value
+  const username = document.getElementById('auth-username').value.trim()
+  const password = document.getElementById('auth-password').value
+  const nickname = document.getElementById('auth-nickname').value.trim() || username
+  if(!username || !password) return
+  if(fbEnabled){
+    if(mode==='signup'){
+      try{
+        const r = await auth.createUserWithEmailAndPassword(username, password)
+        await r.user.updateProfile({displayName: nickname})
+        closeAuth()
+        updateAuthUI()
+      }catch(e){}
+    }else{
+      try{
+        await auth.signInWithEmailAndPassword(username, password)
+        closeAuth()
+        updateAuthUI()
+      }catch(e){}
+    }
+  }else{
+    if(mode==='signup'){
+      if(db.users[username]) return
+      const hash = await sha256(password)
+      db.users[username] = {name: nickname, pass: hash}
+      save()
+      store.set('ptt_session', username)
+      closeAuth()
+      updateAuthUI()
+    }else{
+      const user = db.users[username]
+      if(!user) return
+      const hash = await sha256(password)
+      if(user.pass !== hash) return
+      store.set('ptt_session', username)
+      closeAuth()
+      updateAuthUI()
+    }
+  }
+}
+function logout(){
+  if(fbEnabled && auth){
+    auth.signOut().then(()=>{updateAuthUI()})
+  }else{
+    store.set('ptt_session', null)
+    updateAuthUI()
+  }
+}
+function openCloud(){
+  document.getElementById('cloud-mask').style.display='flex'
+  const cfg = fbEnabled ? fbConfig : store.get('ptt_fb_config', {})
+  document.getElementById('cfg-apiKey').value = cfg.apiKey||''
+  document.getElementById('cfg-authDomain').value = cfg.authDomain||''
+  document.getElementById('cfg-projectId').value = cfg.projectId||''
+  document.getElementById('cfg-appId').value = cfg.appId||''
+  document.getElementById('cfg-storageBucket').value = cfg.storageBucket||''
+  document.getElementById('cfg-messagingSenderId').value = cfg.messagingSenderId||''
+}
+function closeCloud(){document.getElementById('cloud-mask').style.display='none'}
+function submitCloud(){
+  const cfg = {
+    apiKey: document.getElementById('cfg-apiKey').value.trim(),
+    authDomain: document.getElementById('cfg-authDomain').value.trim(),
+    projectId: document.getElementById('cfg-projectId').value.trim(),
+    appId: document.getElementById('cfg-appId').value.trim(),
+    storageBucket: document.getElementById('cfg-storageBucket').value.trim(),
+    messagingSenderId: document.getElementById('cfg-messagingSenderId').value.trim()
+  }
+  if(!cfg.apiKey||!cfg.authDomain||!cfg.projectId||!cfg.appId) return
+  store.set('ptt_fb_config', cfg)
+  fbConfig = cfg
+  initFirebase(cfg)
+  closeCloud()
+  updateAuthUI()
+  if(location.hash.startsWith('#/chat')){renderChat()} 
+}
+function setPath(p){document.getElementById('router-path').textContent=p}
+function renderSidebar(){
+  const s=document.getElementById('sidebar')
+  const counts={}
+  getPosts().forEach(p=>{counts[p.boardId]=(counts[p.boardId]||0)+1})
+  s.innerHTML=''
+  db.boards.forEach(b=>{
+    const d=document.createElement('div')
+    d.className='board-item'
+    d.innerHTML=`<div><b>${b.id}</b>・${b.name}</div><div class="meta">${counts[b.id]||0}</div>`
+    d.onclick=()=>{location.hash=`#/board/${b.id}`}
+    s.appendChild(d)
+  })
+}
+function renderBoards(){
+  setPath('/boards')
+  const c=document.getElementById('content')
+  c.innerHTML=''
+  const sec=document.createElement('div')
+  sec.className='section'
+  const list=document.createElement('div')
+  list.className='list'
+  db.boards.forEach(b=>{
+    const card=document.createElement('div')
+    card.className='card'
+    const count=getPosts().filter(p=>p.boardId===b.id).length
+    card.innerHTML=`<div class="grid"><div><b>${b.id}</b>・${b.name}</div><div class="meta">文章 ${count}</div><div style="text-align:right"><button class="btn" data-id="${b.id}">查看</button></div></div>`
+    card.querySelector('button').onclick=()=>{location.hash=`#/board/${b.id}`}
+    list.appendChild(card)
+  })
+  sec.appendChild(list)
+  c.appendChild(sec)
+}
+function renderBoard(boardId){
+  setPath(`/board/${boardId}`)
+  const c=document.getElementById('content')
+  c.innerHTML=''
+  const sec=document.createElement('div')
+  sec.className='section'
+  const title=document.createElement('div')
+  title.className='card'
+  const bn=db.boards.find(b=>b.id===boardId)?.name||''
+  title.innerHTML=`<div class="grid"><div><b>${boardId}</b>・${bn}</div><div class="meta">最新文章</div><div style="text-align:right"><button class="btn" id="write-here">在此板發文</button></div></div>`
+  sec.appendChild(title)
+  const list=document.createElement('div')
+  list.className='list'
+  getPosts().filter(p=>p.boardId===boardId).sort((a,b)=>b.time.localeCompare(a.time)).forEach(p=>{
+    const card=document.createElement('div')
+    card.className='card'
+    card.innerHTML=`<div class="grid"><div class="article-title">${p.title}</div><div class="meta">${p.author}・${p.time}</div><div style="text-align:right"><span class="count-up">推 ${p.up}</span> ・ <span class="count-down">噓 ${p.down}</span> <button class="btn" data-id="${p.id}">打開</button></div></div>`
+    card.querySelector('button').onclick=()=>{location.hash=`#/article/${p.id}`}
+    list.appendChild(card)
+  })
+  sec.appendChild(list)
+  c.appendChild(sec)
+  document.getElementById('write-here').onclick=()=>openCompose(boardId)
+}
+function renderArticle(pid){
+  const p=getPosts().find(x=>x.id===pid)
+  setPath(`/article/${pid}`)
+  const c=document.getElementById('content')
+  c.innerHTML=''
+  const sec=document.createElement('div')
+  sec.className='section'
+  const head=document.createElement('div')
+  head.className='card'
+  head.innerHTML=`<div class="article-title">${p.title}</div><div class="meta">${p.author}・${p.time}・${p.boardId}</div><div style="margin-top:8px">${p.content.replace(/\\n/g,'<br>')}</div><div style="margin-top:10px"><span class="count-up">推 ${p.up}</span> ・ <span class="count-down">噓 ${p.down}</span></div>`
+  sec.appendChild(head)
+  const pushes=document.createElement('div')
+  pushes.className='card'
+  const list=db.pushes[pid]||[]
+  pushes.innerHTML=list.map(x=>`<div class="push"><div class="push-tag">${x.tag}</div><div><div><b>${x.user}</b>：${x.text}</div><div class="meta">${x.time}</div></div></div>`).join('')
+  const input=document.createElement('div')
+  input.className='push-input'
+  input.innerHTML=`<select id="push-tag" class="select"><option>推</option><option>噓</option><option>→</option></select><input id="push-user" placeholder="使用者"><input id="push-text" placeholder="留言"><button class="btn" id="push-send">送出</button>`
+  pushes.appendChild(input)
+  sec.appendChild(pushes)
+  c.appendChild(sec)
+  const cu = currentUser()
+  if(cu) document.getElementById('push-user').value = cu.name
+  document.getElementById('push-send').onclick=()=>{
+    const tag=document.getElementById('push-tag').value
+    const user=document.getElementById('push-user').value||'guest'
+    const text=document.getElementById('push-text').value
+    if(!text.trim())return
+    if(fbEnabled && firestore){
+      firestore.collection('ptt_pushes').add({pid,user,tag,text,time:firebase.firestore.FieldValue.serverTimestamp()}).then(()=>{
+        if(tag==='推')firestore.collection('ptt_posts').doc(pid).update({up:firebase.firestore.FieldValue.increment(1)})
+        else if(tag==='噓')firestore.collection('ptt_posts').doc(pid).update({down:firebase.firestore.FieldValue.increment(1)})
+        document.getElementById('push-text').value=''
+      })
+    }else{
+      if(!db.pushes[pid])db.pushes[pid]=[]
+      db.pushes[pid].push({user, tag, text, time:now()})
+      if(tag==='推')p.up++;else if(tag==='噓')p.down++
+      save()
+      renderArticle(pid)
+    }
+  }
+  if(fbEnabled && firestore){
+    firestore.collection('ptt_pushes').where('pid','==',pid).orderBy('time','asc').onSnapshot(snap=>{
+      const items=[]
+      snap.forEach(doc=>{
+        const x=doc.data()
+        items.push(`<div class="push"><div class="push-tag">${x.tag}</div><div><div><b>${x.user}</b>：${x.text}</div><div class="meta">${fmtTime(x.time)}</div></div></div>`)
+      })
+      const base=pushes.querySelector('.push-input')
+      pushes.innerHTML=items.join('')
+      pushes.appendChild(base)
+    })
+  }
+}
+function openCompose(boardId){
+  const mask=document.getElementById('compose-mask')
+  const select=document.getElementById('compose-board')
+  select.innerHTML=db.boards.map(b=>`<option ${b.id===boardId?'selected':''}>${b.id}</option>`).join('')
+  const cu = currentUser()
+  document.getElementById('compose-author').value= cu ? cu.name : ''
+  document.getElementById('compose-title').value=''
+  document.getElementById('compose-content').value=''
+  mask.style.display='flex'
+}
+function closeCompose(){document.getElementById('compose-mask').style.display='none'}
+function submitCompose(){
+  const bid=document.getElementById('compose-board').value
+  const author=document.getElementById('compose-author').value||'guest'
+  const title=document.getElementById('compose-title').value
+  const content=document.getElementById('compose-content').value
+  if(!title.trim()||!content.trim())return
+  if(fbEnabled && firestore){
+    firestore.collection('ptt_posts').add({boardId:bid,title,author,time:firebase.firestore.FieldValue.serverTimestamp(),up:0,down:0,content}).then(ref=>{
+      closeCompose()
+      location.hash=`#/article/${ref.id}`
+    })
+  }else{
+    const id='p'+Date.now()
+    const post={id, boardId:bid, title, author, time:now(), up:0, down:0, content}
+    if(wsEnabled && ws && ws.readyState===1){
+      ws.send(JSON.stringify({type:'post',post}))
+      closeCompose()
+      location.hash=`#/board/${bid}`
+    }else{
+      db.posts.push(post)
+      save()
+      closeCompose()
+      location.hash=`#/article/${id}`
+    }
+  }
+}
+function search(){
+  const q=document.getElementById('search-input').value.toLowerCase()
+  const c=document.getElementById('content')
+  setPath(`/search?q=${encodeURIComponent(q)}`)
+  const r=getPosts().filter(p=>p.title.toLowerCase().includes(q)||p.author.toLowerCase().includes(q))
+  c.innerHTML=''
+  const sec=document.createElement('div')
+  sec.className='section'
+  const list=document.createElement('div')
+  list.className='list'
+  r.forEach(p=>{
+    const card=document.createElement('div')
+    card.className='card'
+    card.innerHTML=`<div class="grid"><div class="article-title">${p.title}</div><div class="meta">${p.boardId}・${p.author}</div><div style="text-align:right"><button class="btn" data-id="${p.id}">打開</button></div></div>`
+    card.querySelector('button').onclick=()=>{location.hash=`#/article/${p.id}`}
+    list.appendChild(card)
+  })
+  sec.appendChild(list)
+  c.appendChild(sec)
+}
+function route(){
+  const h=location.hash||'#/boards'
+  renderSidebar()
+  if(h.startsWith('#/board/')){renderBoard(h.split('/')[2])}
+  else if(h.startsWith('#/article/')){renderArticle(h.split('/')[2])}
+  else if(h.startsWith('#/search')){search()}
+  else if(h.startsWith('#/chat')){renderChat()}
+  else{renderBoards()}
+}
+window.addEventListener('hashchange', route)
+document.getElementById('compose-btn').onclick=()=>openCompose()
+document.getElementById('compose-cancel').onclick=closeCompose
+document.getElementById('compose-submit').onclick=submitCompose
+document.getElementById('search-btn').onclick=search
+document.getElementById('login-open-btn').onclick=openAuth
+document.getElementById('logout-btn').onclick=logout
+document.getElementById('auth-cancel').onclick=closeAuth
+document.getElementById('auth-submit').onclick=submitAuth
+document.getElementById('auth-mode').onchange=()=>{document.getElementById('signup-extra').style.display = document.getElementById('auth-mode').value==='signup' ? '' : 'none'}
+document.getElementById('toggle-sidebar-btn').onclick=()=>{document.body.classList.toggle('show-sidebar')}
+document.getElementById('open-chat-btn').onclick=()=>{location.hash='#/chat'}
+document.getElementById('open-cloud-btn').onclick=openCloud
+document.getElementById('cloud-cancel').onclick=closeCloud
+document.getElementById('cloud-submit').onclick=submitCloud
+updateAuthUI()
+route()
+connectWS()
+subscribePosts()
+updateConnUI()
+</script>
+<script>
+function renderChat(){
+  setPath('/chat')
+  const c=document.getElementById('content')
+  c.innerHTML=''
+  const wrap=document.createElement('div')
+  wrap.className='chat-wrap'
+  const list=document.createElement('div')
+  list.className='chat-list'
+  list.id='chat-list'
+  const input=document.createElement('div')
+  input.className='chat-input'
+  input.innerHTML=`<input id="chat-text" placeholder="輸入訊息"><button class="btn primary" id="chat-send">送出</button>`
+  wrap.appendChild(list)
+  wrap.appendChild(input)
+  c.appendChild(wrap)
+  const u=currentUser()
+  function renderWS(){
+    list.innerHTML=''
+    wsMsgs.forEach(m=>{
+      const me=u && (m.user===u.name)
+      const item=document.createElement('div')
+      item.className=(me?'chat-item chat-me':'chat-item chat-other')
+      item.innerHTML=`<div class="chat-bubble">${m.user}：${m.text}</div>`
+      list.appendChild(item)
+    })
+  }
+  function sendWS(){
+    const t=document.getElementById('chat-text').value.trim()
+    if(!t||!wsEnabled||!ws||ws.readyState!==1) return
+    const name=u?u.name:'guest'
+    ws.send(JSON.stringify({type:'chat',user:name,text:t}))
+    document.getElementById('chat-text').value=''
+  }
+  function renderLocal(){
+    const msgs=store.get('ptt_chat',[])
+    list.innerHTML=''
+    msgs.forEach(m=>{
+      const me=u && (m.user===u.name)
+      const item=document.createElement('div')
+      item.className=(me?'chat-item chat-me':'chat-item chat-other')
+      item.innerHTML=`<div class="chat-bubble">${m.user}：${m.text}</div>`
+      list.appendChild(item)
+    })
+  }
+  function sendLocal(){
+    const t=document.getElementById('chat-text').value.trim()
+    if(!t) return
+    const name=u?u.name:'guest'
+    const msgs=store.get('ptt_chat',[])
+    msgs.push({user:name,text:t,time:Date.now()})
+    store.set('ptt_chat',msgs)
+    document.getElementById('chat-text').value=''
+    renderLocal()
+  }
+  function renderRemoteSnap(snap){
+    list.innerHTML=''
+    snap.forEach(doc=>{
+      const m=doc.data()
+      const me=u && (m.user=== (u.displayName||u.email) || m.user===u.name)
+      const item=document.createElement('div')
+      item.className=(me?'chat-item chat-me':'chat-item chat-other')
+      item.innerHTML=`<div class="chat-bubble">${m.user}：${m.text}</div>`
+      list.appendChild(item)
+    })
+  }
+  function sendRemote(){
+    const t=document.getElementById('chat-text').value.trim()
+    if(!t||!firestore) return
+    const name=u?u.name:(auth.currentUser? (auth.currentUser.displayName||auth.currentUser.email) :'guest')
+    firestore.collection('ptt_chat').add({user:name,text:t,time:firebase.firestore.FieldValue.serverTimestamp()}).then(()=>{
+      document.getElementById('chat-text').value=''
+    })
+  }
+  if(wsEnabled && ws && ws.readyState===1){
+    renderWS()
+    document.getElementById('chat-send').onclick=sendWS
+  }else if(fbEnabled && firestore){
+    if(chatUnsub) chatUnsub()
+    chatUnsub=firestore.collection('ptt_chat').orderBy('time','asc').onSnapshot(renderRemoteSnap)
+    document.getElementById('chat-send').onclick=sendRemote
+  }else{
+    renderLocal()
+    document.getElementById('chat-send').onclick=sendLocal
+  }
+}
+</script>
+</body>
+</html>
+</body>
+</html>
